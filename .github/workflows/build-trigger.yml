@@ -1,0 +1,69 @@
+name: Build Custom Runner Image
+
+on:
+  pull_request_target:
+    paths:
+      - ".github/workflows/_track_runner.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write         # for uploading SBOMs, etc.
+  pull-requests: write    # for auto-merge
+  packages: write         # allow pushing Docker images / packages
+  security-events: write  # if your workflow uploads security metadata
+  id-token: write         # if your workflow needs OpenID Connect tokens
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+
+jobs:
+  extract_version:
+    runs-on: ubuntu-latest
+    outputs:
+      runner-version: ${{ steps.extract.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with: 
+          #repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          #token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - id: extract
+        run: |
+          version=$(grep -oE 'actions/runner@v[0-9]+\.[0-9]+\.[0-9]+' .github/workflows/_track_runner.yml | cut -d@ -f2 | sed 's/^v//')
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+  build_base:
+    needs: extract_version
+    uses: ./.github/workflows/build-latest.yml
+    with:
+      runner-version: ${{ needs.extract_version.outputs.runner-version }}
+      runner: '["base","dind","2204"]'
+      runner-archs: '["amd64","arm64","arm"]'
+      dockerfiles: '["jammy-base","noble-base"]'
+    secrets: inherit
+
+  build_custom:
+    needs: [extract_version,build_base]
+    uses: ./.github/workflows/build-latest.yml
+    with:
+      runner-version: ${{ needs.extract_version.outputs.runner-version }}
+      runner: '["base","dind","2204"]'
+      runner-archs: '["amd64","arm64"]'
+      dockerfiles: '["jammy-tf","jammy-torch","jammy-tvm","jammy-opencv"]'
+    secrets: inherit
+
+  auto_merge:
+    needs: [build_base,build_custom]
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto-merge Dependabot PR
+        run: |
+          gh pr merge ${{ github.event.pull_request.number }} --rebase --delete-branch --admin --repo ${{ github.repository }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
