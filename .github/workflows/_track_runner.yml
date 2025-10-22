@@ -1,0 +1,12 @@
+name: Track Runner Version
+on:
+  workflow_dispatch:
+
+jobs:
+  dummy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/runner@v2.325.0
+        with:
+          dummy: "true"
+
