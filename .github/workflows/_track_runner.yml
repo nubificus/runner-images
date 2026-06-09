@@ -6,7 +6,7 @@ jobs:
   dummy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/runner@v2.334.0
+      - uses: actions/runner@v2.335.1
         with:
           dummy: "true"
 
