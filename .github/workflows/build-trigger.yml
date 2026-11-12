@@ -46,6 +46,18 @@ jobs:
       dockerfiles: '["jammy-base","noble-base"]'
     secrets: inherit
 
+  # Ubuntu 26.04 with the tools the KVM lanes need. amd64 and arm64 only, and
+  # none of the tf/torch/tvm/opencv variants build on it.
+  build_resolute:
+    needs: extract_version
+    uses: ./.github/workflows/build-latest.yml
+    with:
+      runner-version: ${{ needs.extract_version.outputs.runner-version }}
+      runner: '["base","dind","2204"]'
+      runner-archs: '["amd64","arm64"]'
+      dockerfiles: '["resolute-base"]'
+    secrets: inherit
+
   build_custom:
     needs: [extract_version,build_base]
     uses: ./.github/workflows/build-latest.yml
@@ -57,7 +69,7 @@ jobs:
     secrets: inherit
 
   auto_merge:
-    needs: [build_base,build_custom]
+    needs: [build_base,build_resolute,build_custom]
     if: github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
